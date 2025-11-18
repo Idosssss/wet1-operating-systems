@@ -2,6 +2,8 @@
 #include "commands.h"
 
 #include <string.h>
+#include <unistd.h>
+#include <sys/wait.h>
 
 Job* jobs_list = NULL;
 pid_t foreground_pid = -1;
@@ -46,15 +48,89 @@ ParsingError parseCmdExample(char* line, char* argv[ARGS_NUM_MAX+1], int* argc, 
 
 CommandResult executeCommand(char* cmd) {
 
+	//first clean all jobs
 	cleanFinishedJobs();
 
+	char original_cmd[CMD_LENGTH_MAX];
+	strcpy(original_cmd, cmd);
+
+	//initialize args
 	char* argv[ARGS_NUM_MAX + 1];
 	int argc = 0;
 	bool isBackground = false;
 
-	ParsingError error = parseCmdExample(cmd, argv, &argc, isBackground);
+	//parse the command
+	ParsingError error = parseCmdExample(cmd, argv, &argc, &isBackground);
 
+	if(error != VALID_COMMAND) {
+		perrorSmash(original_cmd, "parsing error");
+		return SMASH_FAIL;
+	}
+
+	//empty command?
 	if(argc == 0) {
 		return SMASH_SUCCESS;
 	}
+
+	if(isBuiltin(argv[0])) {
+
+		if(isBackground) {
+
+			//background
+			const pid_t pid = (pid_t)my_system_call(SYS_FORK);
+			if(pid == -1) {
+				//fork failed
+				perrorSmash(original_cmd, "fork failed");
+				return SMASH_FAIL;
+			}
+			if(pid == 0) {
+
+				//child process
+				exit(runBuiltin(argc, argv));
+			}
+
+			//parent process
+			addJob(pid, original_cmd, BACKGROUND);
+			return SMASH_SUCCESS;
+
+		}
+
+		    //foreground
+			return runBuiltin(argc, argv);
+
+	}
+		//external
+	const pid_t pid = (pid_t)my_system_call(SYS_FORK);
+	    if(pid == -1) {
+		    perrorSmash(original_cmd, "fork failed");
+	    	return SMASH_FAIL;
+	    }
+
+	if(pid == 0) {
+		//child process
+
+		setpgid(0,0);
+
+		my_system_call(SYS_EXECVP, argv[0], argv);
+		perrorSmash(original_cmd, "execvp failed");
+		exit(EXIT_FAILURE);
+	}
+
+	//parent process
+	if(isBackground) {
+		addJob(pid, original_cmd, BACKGROUND);
+		return SMASH_SUCCESS;
+	}
+
+	int status;
+	if (my_system_call(SYS_WAITPID, pid, &status) == -1) {
+		perrorSmash(original_cmd, "waitpid failed");
+		return SMASH_FAIL;
+	}
+	if(WIFSTOPPED(status)) {
+		addJob(pid, original_cmd, STOPPED);
+		return SMASH_SUCCESS;
+	}
+
+	return SMASH_SUCCESS;
 }
