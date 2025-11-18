@@ -18,6 +18,133 @@ void perrorSmash(const char* cmd, const char* msg)
 		msg);
 }
 
+void cleanFinishedJobs(void) {
+
+	Job* curr = jobs_list;
+	Job* prev = NULL;
+
+	while (curr != NULL) {
+		int status;
+		pid_t pid = my_system_call(SYS_WAITPID, curr->pid, &status, WNOHANG);
+		if(pid == -1) {
+			//waitpid failed
+			perrorSmash("waitpid", "waitpid failed");
+
+			prev = curr;
+			curr = curr->next;
+			continue;
+		}
+		if(pid == 0) {
+			//job not finished
+			prev = curr;
+			curr = curr->next;
+			continue;
+		}
+
+		//the job is done, remove
+		Job* free = curr;
+		if(prev == NULL) {
+			//it's the top of the list
+			jobs_list = curr->next;
+		}else {
+			prev->next = curr->next;
+		}
+		curr = curr->next;
+		free(free);
+	}
+}
+
+void printJobs(void) {
+	for(Job* job = jobs_list; job != NULL; job = job->next) {
+		time_t now = time(NULL);
+		int seconds = (int)difftime(now, job->start_time);
+
+		printf("[%d] %s: %d %d secs", job->job_id, job->command, job->pid, seconds);
+
+		if(job->state == STOPPED) {
+			printf(" (STOPPED)");
+		}
+		printf("\n");
+	}
+}
+
+Job* findJobById(int job_id) {
+
+	for(Job* curr = jobs_list; curr != NULL; curr = curr->next) {
+		if(curr->job_id == job_id) {
+			return curr;
+		}
+	}
+	return NULL;
+}
+
+int nextJobId(void) {
+
+	if(jobs_list == NULL) {
+		return 0;
+	}
+	int id = 0;
+	for(Job* curr = jobs_list; curr != NULL; curr = curr->next) {
+		if(curr->job_id != id) {
+			return id;
+		}
+		id++;
+	}
+	return id;
+}
+
+int addJob(pid_t pid, const char* command, JobState state) {
+
+	Job* newJob = MALLOC_VALIDATED(Job, sizeof(Job));
+	newJob->job_id = nextJobId();
+	newJob->pid = pid;
+	strncpy(newJob->command, command, CMD_LENGTH_MAX);
+	newJob->start_time = time(NULL);
+	newJob->state = state;
+	newJob->next = NULL;
+
+	//find its spot in the job list
+	if(jobs_list == NULL) {
+		jobs_list = newJob;
+		return newJob->job_id;
+	}
+	if(newJob->job_id == 0) {
+		newJob->next = jobs_list;
+		jobs_list = newJob;
+		return newJob->job_id;
+	}
+
+	Job* temp = jobs_list;
+	for(int i = 0; i < newJob->job_id-1; i++) {
+		temp = temp->next;
+	}
+
+	newJob->next = temp->next;
+	temp->next = newJob;
+
+	return newJob->job_id;
+}
+void removeJobById(int job_id) {
+
+	Job* curr = jobs_list, *prev = NULL;
+
+	while(curr != NULL) {
+		if(curr->job_id == job_id) {
+			if(prev == NULL) {
+				jobs_list = curr->next;
+			}else {
+				prev->next = curr->next;
+			}
+			free(curr);
+			return;
+		}
+		prev = curr;
+		curr = curr->next;
+	}
+}
+
+
+
 //example function for parsing commands
 ParsingError parseCmdExample(char* line, char* argv[ARGS_NUM_MAX+1], int* argc, bool* isBackground)
 {
