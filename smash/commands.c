@@ -17,7 +17,7 @@ void perrorSmash(const char* cmd, const char* msg)
 }
 
 //example function for parsing commands
-ParsingError parseCmdExample(char* line, char* argv[ARGS_NUM_MAX+1], int* argc)
+ParsingError parseCmdExample(char* line, char* argv[ARGS_NUM_MAX+1], int* argc, bool* isBackground)
 {
 	char* delimiters = " \t\n"; //parsing should be done by spaces, tabs or newlines
 	char* cmd = strtok(line, delimiters); //read strtok documentation - parses string by delimiters
@@ -25,6 +25,7 @@ ParsingError parseCmdExample(char* line, char* argv[ARGS_NUM_MAX+1], int* argc)
 		return INVALID_COMMAND; //this means no tokens were found, most like since command is invalid
 
 	*argc = 1;
+	*isBackground = false;
 	argv[0] = cmd; //first token before spaces/tabs/newlines should be command name
 	for(int i = 1; i < ARGS_NUM_MAX; i++)
 	{
@@ -32,6 +33,11 @@ ParsingError parseCmdExample(char* line, char* argv[ARGS_NUM_MAX+1], int* argc)
 		if(!argv[i])
 			break;
 		(*argc)++;
+	}
+
+	if(strcmp(argv[(*argc)-1], "&") == 0) {
+		*isBackground = true;
+		(*argc)--;
 	}
 
 	argv[*argc] = NULL;
@@ -44,6 +50,11 @@ CommandResult executeCommand(char* cmd) {
 
 	char* argv[ARGS_NUM_MAX + 1];
 	int argc = 0;
+	bool isBackground = false;
 
-	ParsingError error = parseCmdExample(cmd, argv, &argc);
+	ParsingError error = parseCmdExample(cmd, argv, &argc, isBackground);
+
+	if(argc == 0) {
+		return SMASH_SUCCESS;
+	}
 }
