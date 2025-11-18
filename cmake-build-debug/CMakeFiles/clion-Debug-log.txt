@@ -1,0 +1,13 @@
+/usr/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MAKE_PROGRAM=/usr/bin/make -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ "-DCMAKE_CXX_FLAGS=-Wall -pedantic-errors -Werror" -G "Unix Makefiles" -S /mnt/c/Users/sharo/CLionProjects/wet1-operating-systems -B /mnt/c/Users/sharo/CLionProjects/wet1-operating-systems/cmake-build-debug
+CMake Error at CMakeLists.txt:1 (cmake_minimum_required):
+  CMake 3.29 or higher is required.  You are running version 3.28.3
+
+
+-- Configuring incomplete, errors occurred!
+
+Cannot get compiler information:
+	Compiler exited with error code 1: C:\Program Files\JetBrains\CLion 2024.2.3\bin\mingw\bin\gcc.exe -xc -g -std=gnu11 -fpch-preprocess -v -dD -E
+	gcc.exe: fatal error: cannot execute 'ld': CreateProcess: No such file or directory
+	compilation terminated.
+	
+	
