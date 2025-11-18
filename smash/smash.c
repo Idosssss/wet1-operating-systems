@@ -4,6 +4,9 @@
 * includes, defines, usings
 =============================================================================*/
 #include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #include "commands.h"
 #include "signals.h"
@@ -17,6 +20,22 @@
 =============================================================================*/
 char _line[CMD_LENGTH_MAX];
 
+typedef enum {
+	FOREGROUND,
+	BACKGROUND,
+	STOPPED
+} JobState;
+
+typedef struct Job{
+	int id;
+	pid_t pgid;
+	char command[CMD_LENGTH_MAX];
+	JobState state;
+	struct Job* next;
+} Job;
+
+
+
 /*=============================================================================
 * main function
 =============================================================================*/
@@ -27,7 +46,13 @@ int main(int argc, char* argv[])
 		printf("smash > ");
 		fgets(_line, CMD_LENGTH_MAX, stdin);
 		strcpy(_cmd, _line);
+
 		//execute command
+
+		int result = parseCommandExample(_cmd);
+		if(result == INVALID_COMMAND) {
+
+		}
 
 		//initialize buffers for next command
 		_line[0] = '\0';
@@ -36,3 +61,4 @@ int main(int argc, char* argv[])
 
 	return 0;
 }
+

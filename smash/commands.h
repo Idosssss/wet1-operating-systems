@@ -39,6 +39,7 @@ static inline void* _validatedMalloc(size_t size)
 =============================================================================*/
 typedef enum  {
 	INVALID_COMMAND = 0,
+    VALID_COMMAND
 	//feel free to add more values here or delete this
 } ParsingError;
 
