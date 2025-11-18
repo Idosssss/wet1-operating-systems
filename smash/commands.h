@@ -5,6 +5,11 @@
 =============================================================================*/
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
+#include <sys/types.h>
+#include <time.h>
+
+#include "my_system_call.h"
 
 #define CMD_LENGTH_MAX 120
 #define ARGS_NUM_MAX 20
@@ -39,7 +44,6 @@ static inline void* _validatedMalloc(size_t size)
 =============================================================================*/
 typedef enum  {
 	INVALID_COMMAND = 0,
-    VALID_COMMAND
 	//feel free to add more values here or delete this
 } ParsingError;
 
@@ -50,9 +54,38 @@ typedef enum {
 	//feel free to add more values here or delete this
 } CommandResult;
 
+typedef enum {
+    BACKGROUND,
+    STOPPED
+} JobState;
+
+typedef struct Job {
+    int job_id;
+    pid_t pid;
+    char command[CMD_LENGTH_MAX];
+    time_t start_time;
+    JobState state;
+    struct Job* next;
+} Job;
+
+extern Job* job_list;
+
+extern pid_t foreground_pid;
+extern char foreground_cmd[CMD_LENGTH_MAX];
+
 /*=============================================================================
 * global functions
 =============================================================================*/
 int parseCommandExample(char* line);
+
+CommandResult executeCommand(char* command);
+
+void cleanFinishedJobs(void);
+void printJobs(void);
+Job* findJobById(int job_id);
+int addJob(pid_t pid, const char* command, JobState state);
+void removeJobById(int job_id);
+
+void perrorSmash(const char* command, const char* message);
 
 #endif //COMMANDS_H

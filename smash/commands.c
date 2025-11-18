@@ -3,23 +3,27 @@
 
 #include <string.h>
 
+Job* jobs_list = NULL;
+pid_t foreground_pid = -1;
+char foreground_command[CMD_LENGTH_MAX] = {0};
+
 //example function for printing errors from internal commands
 void perrorSmash(const char* cmd, const char* msg)
 {
-    fprintf(stderr, "smash error:%s%s%s\n",
-        cmd ? cmd : "",
-        cmd ? ": " : "",
-        msg);
+	fprintf(stderr, "smash error:%s%s%s\n",
+		cmd ? cmd : "",
+		cmd ? ": " : "",
+		msg);
 }
 
 //example function for parsing commands
-int parseCommmandExample(char* line)
+int parseCmdExample(char* line)
 {
 	char* delimiters = " \t\n"; //parsing should be done by spaces, tabs or newlines
 	char* cmd = strtok(line, delimiters); //read strtok documentation - parses string by delimiters
 	if(!cmd)
 		return INVALID_COMMAND; //this means no tokens were found, most like since command is invalid
-	
+
 	char* args[ARGS_NUM_MAX];
 	int nargs = 0;
 	args[0] = cmd; //first token before spaces/tabs/newlines should be command name
@@ -44,4 +48,8 @@ int parseCommmandExample(char* line)
 			int nargs;
 		} CmdArgs;
 	*/
+}
+
+CommandResult executeCommand(char* cmd) {
+
 }

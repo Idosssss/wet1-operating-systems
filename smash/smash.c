@@ -20,44 +20,30 @@
 =============================================================================*/
 char _line[CMD_LENGTH_MAX];
 
-typedef enum {
-	FOREGROUND,
-	BACKGROUND,
-	STOPPED
-} JobState;
-
-typedef struct Job{
-	int id;
-	pid_t pgid;
-	char command[CMD_LENGTH_MAX];
-	JobState state;
-	struct Job* next;
-} Job;
-
-
 
 /*=============================================================================
 * main function
 =============================================================================*/
 int main(int argc, char* argv[])
 {
-	char _cmd[CMD_LENGTH_MAX];
-	while(1) {
+	while (1) {
 		printf("smash > ");
-		fgets(_line, CMD_LENGTH_MAX, stdin);
-		strcpy(_cmd, _line);
+		fflush(stdout);
 
-		//execute command
-
-		int result = parseCommandExample(_cmd);
-		if(result == INVALID_COMMAND) {
-
+		if(!fgets(_line, CMD_LENGTH_MAX, stdin)) {
+			continue;
 		}
 
-		//initialize buffers for next command
-		_line[0] = '\0';
-		_cmd[0] = '\0';
+		if(strcmp(_line, "\n") == 0) {
+			continue;
+		}
+
+		CommandResult res = executeCommand(_line);
+		if(res == SMASH_QUIT) {
+			break;
+		}
 	}
+
 
 	return 0;
 }
