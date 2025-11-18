@@ -46,6 +46,41 @@ ParsingError parseCmdExample(char* line, char* argv[ARGS_NUM_MAX+1], int* argc, 
 	return VALID_COMMAND;
 }
 
+bool isBuiltin(const char* cmd) {
+	return
+		strcmp(cmd, "showpid")      == 0 ||
+		strcmp(cmd, "pwd")     == 0 ||
+		strcmp(cmd, "cd") == 0 ||
+		strcmp(cmd, "jobs")    == 0 ||
+		strcmp(cmd, "kill")      == 0 ||
+		strcmp(cmd, "fg")      == 0 ||
+		strcmp(cmd, "bg")    == 0 ||
+		strcmp(cmd, "quit")    == 0 ||
+		strcmp(cmd, "diff")    == 0 ||
+		strcmp(cmd, "alias")   == 0 ||
+		strcmp(cmd, "unalias") == 0;
+
+}
+
+CommandResult runBuiltin(int argc, char* argv[])
+{
+	const char* cmd = argv[0];
+
+	if (strcmp(cmd, "showpid") == 0) return cmd_showpid(argc, argv);
+	if (strcmp(cmd, "pwd") == 0) return cmd_pwd(argc, argv);
+	if (strcmp(cmd, "cd") == 0) return cmd_cd(argc, argv);
+	if (strcmp(cmd, "jobs") == 0) return cmd_jobs(argc, argv);
+	if (strcmp(cmd, "kill") == 0) return cmd_kill(argc, argv);
+	if (strcmp(cmd, "fg") == 0) return cmd_fg(argc, argv);
+	if (strcmp(cmd, "bg") == 0) return cmd_bg(argc, argv);
+	if (strcmp(cmd, "quit") == 0) return cmd_quit(argc, argv);
+	if (strcmp(cmd, "diff") == 0) return cmd_diff(argc, argv);
+	if (strcmp(cmd, "alias") == 0) return cmd_alias(argc, argv);
+	if (strcmp(cmd, "unalias") == 0) return cmd_unalias(argc, argv);
+
+	return SMASH_FAIL;
+}
+
 CommandResult executeCommand(char* cmd) {
 
 	//first clean all jobs
