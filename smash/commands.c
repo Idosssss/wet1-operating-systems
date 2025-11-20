@@ -1,13 +1,15 @@
 //commands.c
 #include "commands.h"
 
+#include <ctype.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <pthread.h>
+#include <errno.h>
 
 Job* jobs_list = NULL;
-pid_t foreground_pid = -1;
-char foreground_command[CMD_LENGTH_MAX] = {0};
+char pwd[CMD_LENGTH_MAX] = "first";
 
 //example function for printing errors from internal commands
 void perrorSmash(const char* cmd, const char* msg)
@@ -187,6 +189,113 @@ bool isBuiltin(const char* cmd) {
 		strcmp(cmd, "alias")   == 0 ||
 		strcmp(cmd, "unalias") == 0;
 
+}
+
+bool isNumber(const char* num) {
+
+	for(int i = 0; i < strlen(num); i++) {
+		if(!isdigit(num[i])) {
+			return false;
+		}
+	}
+	return true;
+}
+
+CommandResult cmd_showpid(int argc, char* argv[]) {
+	if(argc != 1) {
+		perrorSmash("showpid", "expected 0 arguments");
+		return SMASH_FAIL;
+	}
+	pid_t pid = getpid();
+	printf("smash pid is %d\n", pid);
+	return SMASH_SUCCESS;
+}
+
+CommandResult cmd_pwd(int argc, char* argv[]) {
+	if(argc != 1) {
+		perrorSmash("pwd", "expected 0 arguments");
+		return SMASH_FAIL;
+	}
+
+	char cwd[CMD_LENGTH_MAX];
+	if(!getcwd(cwd, CMD_LENGTH_MAX)) {
+		perrorSmash("pwd", "getcwd failed");
+		return SMASH_FAIL;
+	}
+	printf("%s\n", cwd);
+	return SMASH_SUCCESS;
+}
+
+CommandResult cmd_cd(int argc, char* argv[]) {
+	if(argc != 2) {
+		perrorSmash("cd", "expected 1 argument");
+		return SMASH_FAIL;
+	}
+	if(strcmp(argv[1], "-") == 0) {
+		if(strcmp(pwd, "first") == 0) {
+			perrorSmash("cd", "old pwd not set");
+			return SMASH_FAIL;
+		}
+		char temp[CMD_LENGTH_MAX];
+		strcpy(temp, pwd);
+		getcwd(pwd, CMD_LENGTH_MAX);
+		if(chdir(temp) != 0) {
+			perrorSmash("cd", "chdir failed");
+			return SMASH_FAIL;
+		}
+		return SMASH_SUCCESS;
+	}
+	char temp[CMD_LENGTH_MAX];
+	strcpy(temp, pwd);
+	getcwd(pwd, CMD_LENGTH_MAX);
+	if(chdir(argv[1]) != 0) {
+		if(errno == ENOTDIR) {
+			char buffer[CMD_LENGTH_MAX];
+			sprintf(buffer, "%s: not a directory", argv[1]);
+			perrorSmash("cd",buffer);
+		}else if(errno == ENOENT) {
+			perrorSmash("cd", "target directory does not exist");
+		}
+		strcpy(pwd, temp);
+		return SMASH_FAIL;
+	}
+	return SMASH_SUCCESS;
+}
+
+CommandResult cmd_jobs(int argc, char* argv[]) {
+
+	if(argc != 1) {
+		perrorSmash("jobs", "expected 0 argument");
+		return SMASH_FAIL;
+	}
+
+	printJobs();
+	return SMASH_SUCCESS;
+}
+
+CommandResult cmd_kill(int argc, char* argv[]) {
+	if(argc != 3) {
+		perrorSmash("kill", "invalid arguments");
+		return SMASH_FAIL;
+	}
+	if(!isNumber(argv[1]) || !isNumber(argv[2])) {
+		perrorSmash("kill", "invalid arguments");
+		return SMASH_FAIL;
+	}
+
+	int sigNum = atoi(argv[1]);
+	int jobId = atoi(argv[2]);
+
+	Job* job = findJobById(jobId);
+	if(job == NULL) {
+		char buffer[CMD_LENGTH_MAX];
+		sprintf(buffer, "job id %s does not exist", argv[2]);
+		perrorSmash("kill", "job not found");
+		return SMASH_FAIL;
+	}
+
+	printf("signal %d was sent to pid %d", sigNum, job->pid);
+	return SMASH_SUCCESS;
 }
 
 CommandResult runBuiltin(int argc, char* argv[])
