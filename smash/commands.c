@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <bits/signum-arch.h>
 #include <bits/signum-generic.h>
+#include <sys/stat.h>
 
 Job* jobs_list = NULL;
 pid_t foreground_pid = -1;
@@ -458,6 +459,74 @@ CommandResult cmd_quit(int argc, char* argv[]) {
 	}
 
 	return SMASH_QUIT;
+}
+
+static bool pathExists(char* path) {
+	struct stat st;
+	return stat(path, &st) == 0;
+}
+
+static bool isFile(char* path) {
+	struct stat st;
+	if(stat(path, &st) != 0) {
+		return false;
+	}
+	return S_ISREG(st.st_mode);
+}
+
+static bool areFilesEqual(char* path1, char* path2) {
+
+	FILE *f1 = fopen(path1, "rb");
+	FILE *f2 = fopen(path2, "rb");
+
+	if(f1 == NULL || f2 == NULL) {
+		if(f1) {
+			fclose(f1);
+		}
+		if(f2) {
+			fclose(f2);
+		}
+		return false;
+	}
+
+	int c1, c2;
+	do {
+		c1 = fgetc(f1);
+		c2 = fgetc(f2);
+		if(c1 != c2) {
+			fclose(f1);
+			fclose(f2);
+			return false;
+		}
+	}while (c1 != EOF && c2 != EOF);
+
+	fclose(f1);
+	fclose(f2);
+	return true;
+}
+
+CommandResult cmd_diff(int argc, char* argv[]) {
+
+	if(argc != 3) {
+		perrorSmash("diff", "expected 2 arguments");
+		return SMASH_FAIL;
+	}
+	if(!pathExists(argv[1]) || !pathExists(argv[2])) {
+		perrorSmash("diff", "expected valid paths for files");
+		return SMASH_FAIL;
+	}
+
+	if(!isFile(argv[1]) || !isFile(argv[2])) {
+		perrorSmash("diff", "paths are not files");
+		return SMASH_FAIL;
+	}
+
+	if(areFilesEqual(argv[1], argv[2])) {
+		printf("1\n");
+		return SMASH_SUCCESS;
+	}
+	printf("0\n");
+	return SMASH_SUCCESS;
 }
 
 CommandResult runBuiltin(int argc, char* argv[])
