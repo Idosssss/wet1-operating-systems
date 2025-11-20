@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include <bits/signum-arch.h>
+#include <bits/signum-generic.h>
 
 Job* jobs_list = NULL;
 pid_t foreground_pid = -1;
@@ -417,6 +418,46 @@ CommandResult cmd_bg(int argc, char* argv[]) {
 	job->state = BACKGROUND;
 	my_system_call(SYS_KILL, job->pid, SIGCONT);
 	return SMASH_SUCCESS;
+}
+
+CommandResult cmd_quit(int argc, char* argv[]) {
+
+	if(argc != 1 && argc != 2) {
+		perrorSmash("quit", "expected 0 or 1 arguments");
+		return SMASH_FAIL;
+	}
+
+	if(argc == 1) {
+		return SMASH_QUIT;
+	}
+
+	if(strcmp(argv[1], "kill") != 0) {
+		perrorSmash("quit", "unexpected arguments");
+		return SMASH_FAIL;
+	}
+
+	int status;
+	Job* job = jobs_list;
+	Job* to_free = NULL;
+	while(job != NULL) {
+
+		printf("[%d] %s - ", job->job_id, job->command);
+		my_system_call(SYS_KILL, job->pid, SIGTERM);
+		printf("sending SIGTERM... ");
+		sleep(5);
+		if(my_system_call(SYS_WAITPID, job->pid, &status, WNOHANG) == 0) {
+			my_system_call(SYS_KILL, job->pid, SIGKILL);
+			printf("sending SIGKILL... done");
+		}else {
+			printf("done");
+		}
+
+		to_free = job;
+		job = job->next;
+		free(to_free);
+	}
+
+	return SMASH_QUIT;
 }
 
 CommandResult runBuiltin(int argc, char* argv[])
