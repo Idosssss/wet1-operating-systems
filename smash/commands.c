@@ -7,8 +7,11 @@
 #include <sys/wait.h>
 #include <pthread.h>
 #include <errno.h>
+#include <bits/signum-arch.h>
 
 Job* jobs_list = NULL;
+pid_t foreground_pid = -1;
+char foreground_cmd[CMD_LENGTH_MAX] = {0};
 char pwd[CMD_LENGTH_MAX] = "first";
 
 //example function for printing errors from internal commands
@@ -143,6 +146,26 @@ void removeJobById(int job_id) {
 		prev = curr;
 		curr = curr->next;
 	}
+}
+
+Job* findMaxIdJobForFG() {
+	Job* max = NULL;
+	for(Job* curr = jobs_list; curr != NULL; curr = curr->next) {
+		if(!max || curr->job_id > max->job_id) {
+			max = curr;
+		}
+	}
+	return max;
+}
+
+Job* findMaxIdJobForBG() {
+	Job* max = NULL;
+	for(Job* curr = jobs_list; curr != NULL; curr = curr->next) {
+		if((!max || curr->job_id > max->job_id) && curr->state == STOPPED) {
+			max = curr;
+		}
+	}
+	return max;
 }
 
 
@@ -283,18 +306,116 @@ CommandResult cmd_kill(int argc, char* argv[]) {
 		return SMASH_FAIL;
 	}
 
-	int sigNum = atoi(argv[1]);
-	int jobId = atoi(argv[2]);
+	const int sigNum = atoi(argv[1]);
+	const int jobId = atoi(argv[2]);
 
 	Job* job = findJobById(jobId);
 	if(job == NULL) {
 		char buffer[CMD_LENGTH_MAX];
 		sprintf(buffer, "job id %s does not exist", argv[2]);
-		perrorSmash("kill", "job not found");
+		perrorSmash("kill", buffer);
 		return SMASH_FAIL;
 	}
 
 	printf("signal %d was sent to pid %d", sigNum, job->pid);
+	return SMASH_SUCCESS;
+}
+
+CommandResult cmd_fg(int argc, char* argv[]) {
+
+	if(argc != 1 && argc != 2) {
+		perrorSmash("fg", "invalid arguments");
+		return SMASH_FAIL;
+	}
+
+	Job* job = NULL;
+
+	if(argc == 1) {
+		job = findMaxIdJobForFG();
+		if(job == NULL) {
+			perrorSmash("fg", "job list is empty");
+			return SMASH_FAIL;
+		}
+	} else {
+		if(!isNumber(argv[1])) {
+			perrorSmash("fg", "invalid arguments");
+			return SMASH_FAIL;
+		}
+
+		int job_id = atoi(argv[1]);
+		job = findJobById(job_id);
+
+		if(job == NULL) {
+			char buffer[CMD_LENGTH_MAX];
+			sprintf(buffer, "job id %s does not exist", argv[1]);
+			perrorSmash("fg", buffer);
+			return SMASH_FAIL;
+		}
+	}
+
+	printf("[%d] %s\n", job->job_id, job->command);
+
+	if(job->state == STOPPED) {
+		my_system_call(SYS_KILL, job->pid, SIGCONT);
+	}
+
+	foreground_pid = job->pid;
+	strncpy(foreground_cmd, job->command, CMD_LENGTH_MAX-1);
+	foreground_cmd[CMD_LENGTH_MAX-1] = '\0';
+
+	removeJobById(job->job_id);
+
+	int status;
+	if(my_system_call(SYS_WAITPID, job->pid, &status, 0) == -1) {
+		perrorSmash("fg", "waitpid failed");
+		return SMASH_FAIL;
+	}
+
+	foreground_pid = -1;
+	foreground_cmd[0] = '\0';
+	return SMASH_SUCCESS;
+
+}
+
+CommandResult cmd_bg(int argc, char* argv[]) {
+
+	if(argc != 2 && argc != 1) {
+		perrorSmash("bg", "invalid arguments");
+		return SMASH_FAIL;
+	}
+
+	Job* job = NULL;
+	if(argc == 1) {
+		job = findMaxIdJobForBG();
+		if(job == NULL) {
+			perrorSmash("bg", "there are no topped jobs to resume");
+			return SMASH_FAIL;
+		}
+	}else {
+		if(!isNumber(argv[1])) {
+			perrorSmash("bg", "invalid arguments");
+			return SMASH_FAIL;
+		}
+		int job_id = atoi(argv[1]);
+		job = findJobById(job_id);
+
+		if(job == NULL) {
+			char buffer[CMD_LENGTH_MAX];
+			sprintf(buffer, "job id %s does not exist", argv[1]);
+			perrorSmash("bg", buffer);
+			return SMASH_FAIL;
+		}
+		if(job->state != STOPPED) {
+			char buffer[CMD_LENGTH_MAX];
+			sprintf(buffer, "job id %s is already in background", argv[1]);
+			perrorSmash("bg", buffer);
+			return SMASH_FAIL;
+		}
+	}
+
+	printf("[%d] %s\n", job->job_id, job->command);
+	job->state = BACKGROUND;
+	my_system_call(SYS_KILL, job->pid, SIGCONT);
 	return SMASH_SUCCESS;
 }
 
@@ -393,15 +514,22 @@ CommandResult executeCommand(char* cmd) {
 		return SMASH_SUCCESS;
 	}
 
+	foreground_pid = pid;
+	strncpy(foreground_cmd, original_cmd, CMD_LENGTH_MAX - 1);
+	foreground_cmd[CMD_LENGTH_MAX - 1] = '\0';
+
 	int status;
 	if (my_system_call(SYS_WAITPID, pid, &status) == -1) {
 		perrorSmash(original_cmd, "waitpid failed");
 		return SMASH_FAIL;
 	}
 	if(WIFSTOPPED(status)) {
+		foreground_pid = -1;
+		foreground_cmd[0] = '\0';
 		addJob(pid, original_cmd, STOPPED);
 		return SMASH_SUCCESS;
 	}
-
+	foreground_pid = -1;
+	foreground_cmd[0] = '\0';
 	return SMASH_SUCCESS;
 }

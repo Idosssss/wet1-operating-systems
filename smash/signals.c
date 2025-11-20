@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <bits/sigaction.h>
 
 
 pid_t foreground_pid = -1;
