@@ -1,15 +1,11 @@
 // signals.c
 #include "signals.h"
-#include "smash.c"
 #include <signal.h>
 #include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <bits/sigaction.h>
+#include "my_system_call.h"
+#include "commands.h"
 
 
-pid_t foreground_pid = -1;
-char foreground_cmd[CMD_LENGTH_MAX] = {0};
 
 
 static void sigint_handler(int sig) {
@@ -18,12 +14,14 @@ static void sigint_handler(int sig) {
     printf("smash: caught CTRL+C\n");
 
     if (foreground_pid > 0) {
-        if (kill(foreground_pid, SIGKILL) == -1) {
-            perror("smash error: kill failed");
+        if (my_system_call(SYS_KILL, foreground_pid, SIGKILL) == -1) {
+            perrorSmash("kill", "SIGKILL failed");
             return;
         }
 
         printf("smash: process %d was killed\n", foreground_pid);
+        foreground_pid = -1;
+        foreground_cmd[0] = '\0';
     }
 }
 
@@ -34,28 +32,21 @@ static void sigtstp_handler(int sig) {
     printf("smash: caught CTRL+Z\n");
 
     if (foreground_pid > 0) {
-        if (kill(foreground_pid, SIGSTOP) == -1) {
-            perror("smash error: stop failed");
+        if (my_system_call(SYS_KILL, foreground_pid, SIGSTOP) == -1) {
+            perrorSmash("kill", "SIGSTOP failed");
             return;
         }
 
+        addJob(foreground_pid, foreground_cmd, STOPPED);
         printf("smash: process %d was stopped\n", foreground_pid);
-
+        foreground_pid = -1;
+        foreground_cmd[0] = '\0';
     }
 }
 
 
 void setup_signal_handlers(void) {
-    struct sigaction sa_int = {0};
-    sa_int.sa_handler = sigint_handler;
-    sigemptyset(&sa_int.sa_mask);
-    sa_int.sa_flags = SA_RESTART;
-    sigaction(SIGINT, &sa_int, NULL);
-
-    struct sigaction sa_tstp = {0};
-    sa_tstp.sa_handler = sigtstp_handler;
-    sigemptyset(&sa_tstp.sa_mask);
-    sa_tstp.sa_flags = SA_RESTART;
-    sigaction(SIGTSTP, &sa_tstp, NULL);
+    my_system_call(SYS_SIGNAL, SIGINT, sigint_handler);
+    my_system_call(SYS_SIGNAL, SIGTSTP, sigtstp_handler);
 }
 

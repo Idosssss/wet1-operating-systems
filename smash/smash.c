@@ -26,6 +26,8 @@ char _line[CMD_LENGTH_MAX];
 =============================================================================*/
 int main(int argc, char* argv[])
 {
+
+	setup_signal_handlers();
 	while (1) {
 		printf("smash > ");
 		fflush(stdout);
