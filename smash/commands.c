@@ -7,14 +7,15 @@
 #include <sys/wait.h>
 #include <pthread.h>
 #include <errno.h>
-#include <bits/signum-arch.h>
-#include <bits/signum-generic.h>
+
 #include <sys/stat.h>
 
 Job* jobs_list = NULL;
 pid_t foreground_pid = -1;
 char foreground_cmd[CMD_LENGTH_MAX] = {0};
 char pwd[CMD_LENGTH_MAX] = "first";
+
+Alias* alias_list = NULL;
 
 //example function for printing errors from internal commands
 void perrorSmash(const char* cmd, const char* msg)
@@ -49,7 +50,7 @@ void cleanFinishedJobs(void) {
 		}
 
 		//the job is done, remove
-		Job* free = curr;
+		Job* freeJob = curr;
 		if(prev == NULL) {
 			//it's the top of the list
 			jobs_list = curr->next;
@@ -57,7 +58,7 @@ void cleanFinishedJobs(void) {
 			prev->next = curr->next;
 		}
 		curr = curr->next;
-		free(free);
+		free(freeJob);
 	}
 }
 
@@ -150,7 +151,7 @@ void removeJobById(int job_id) {
 	}
 }
 
-Job* findMaxIdJobForFG() {
+Job* findMaxIdJobForFG(void) {
 	Job* max = NULL;
 	for(Job* curr = jobs_list; curr != NULL; curr = curr->next) {
 		if(!max || curr->job_id > max->job_id) {
@@ -160,7 +161,7 @@ Job* findMaxIdJobForFG() {
 	return max;
 }
 
-Job* findMaxIdJobForBG() {
+Job* findMaxIdJobForBG(void) {
 	Job* max = NULL;
 	for(Job* curr = jobs_list; curr != NULL; curr = curr->next) {
 		if((!max || curr->job_id > max->job_id) && curr->state == STOPPED) {
@@ -293,7 +294,7 @@ CommandResult cmd_jobs(int argc, char* argv[]) {
 		perrorSmash("jobs", "expected 0 argument");
 		return SMASH_FAIL;
 	}
-
+    cleanFinishedJobs();
 	printJobs();
 	return SMASH_SUCCESS;
 }
@@ -529,6 +530,102 @@ CommandResult cmd_diff(int argc, char* argv[]) {
 	return SMASH_SUCCESS;
 }
 
+
+Alias* findAlias(char* name) {
+    Alias* curr = alias_list;
+    while(curr) {
+        // return current if found
+        if(strcmp(curr->alias, name) == 0) return curr;
+        curr = curr->next;
+    }
+    //didnt find the alias in the linked list
+    return NULL;
+}
+
+void addAlias(char* name, char* command) {
+    //checks for alias
+    Alias* found = findAlias(name);
+    if(found) {
+
+        //found so puts the command in the alias
+        strcpy(found->command, command);
+    } else {
+        //didnt find the alias so created a new ALIAS
+        Alias* new_alias = MALLOC_VALIDATED(Alias, sizeof(Alias));
+        strcpy(new_alias->alias, name);
+        strcpy(new_alias->command, command);
+        new_alias->next = alias_list;
+        alias_list = new_alias;
+    }
+}
+
+void removeAlias(char* name) {
+    Alias* curr = alias_list;
+    Alias* prev = NULL;
+    while(curr) {
+        if(strcmp(curr->alias, name) == 0) {
+            if(prev == NULL) alias_list = curr->next;
+            else prev->next = curr->next;
+            free(curr);
+            return;
+        }
+        prev = curr;
+        curr = curr->next;
+    }
+
+    //looped through the entire thing and didnt find the alias
+    char error_msg[CMD_LENGTH_MAX];
+    sprintf(error_msg, "alias %s does not exist", name);
+    perrorSmash("unalias", error_msg);
+}
+
+
+
+CommandResult cmd_alias(int argc, char* argv[]) {
+    if (argc == 1) {
+        return SMASH_SUCCESS;
+    }
+
+    char cmd_line[CMD_LENGTH_MAX] = {0};
+    for (int i = 1; i < argc; i++) {
+        if (i > 1) strcat(cmd_line, " ");
+        strcat(cmd_line, argv[i]);
+    }
+
+    char* sep = strchr(cmd_line, '=');
+    if (!sep) {
+        perrorSmash("alias", "invalid alias format");
+        return SMASH_FAIL;
+    }
+
+    *sep = '\0';
+    char* name = cmd_line;
+    char* command = sep + 1;
+
+    if (command[0] == '\'') {
+        command++;
+        char* end = strrchr(command, '\'');
+        if (end) *end = '\0';
+    }
+
+    if (isBuiltin(name)) {
+        perrorSmash("alias", "alias name already exists");
+        return SMASH_FAIL;
+    }
+
+    addAlias(name, command);
+    return SMASH_SUCCESS;
+}
+
+CommandResult cmd_unalias(int argc, char* argv[]) {
+    if (argc != 2) {
+        perrorSmash("unalias", "expected 1 argument");
+        return SMASH_FAIL;
+    }
+    removeAlias(argv[1]);
+    return SMASH_SUCCESS;
+}
+
 CommandResult runBuiltin(int argc, char* argv[])
 {
 	const char* cmd = argv[0];
@@ -548,98 +645,133 @@ CommandResult runBuiltin(int argc, char* argv[])
 	return SMASH_FAIL;
 }
 
-CommandResult executeCommand(char* cmd) {
+CommandResult executeSingleCommand(char* cmd) {
 
-	//first clean all jobs
-	cleanFinishedJobs();
+    char original_cmd[CMD_LENGTH_MAX];
+    strcpy(original_cmd, cmd);
 
-	char original_cmd[CMD_LENGTH_MAX];
-	strcpy(original_cmd, cmd);
+    char* argv[ARGS_NUM_MAX + 1];
+    int argc = 0;
+    bool isBackground = false;
 
-	//initialize args
-	char* argv[ARGS_NUM_MAX + 1];
-	int argc = 0;
-	bool isBackground = false;
+    ParsingError error = parseCmdExample(cmd, argv, &argc, &isBackground);
 
-	//parse the command
-	ParsingError error = parseCmdExample(cmd, argv, &argc, &isBackground);
+    if(error != VALID_COMMAND) {
+        perrorSmash(original_cmd, "parsing error");
+        return SMASH_FAIL;
+    }
 
-	if(error != VALID_COMMAND) {
-		perrorSmash(original_cmd, "parsing error");
-		return SMASH_FAIL;
-	}
+    if(argc == 0) {
+        return SMASH_SUCCESS;
+    }
 
-	//empty command?
-	if(argc == 0) {
-		return SMASH_SUCCESS;
-	}
+    if(isBuiltin(argv[0])) {
+        if(isBackground) {
+            const pid_t pid = (pid_t)my_system_call(SYS_FORK);
+            if(pid == -1) {
+                perrorSmash(original_cmd, "fork failed");
+                return SMASH_FAIL;
+            }
+            if(pid == 0) {
+                setpgid(0, 0);
+                exit(runBuiltin(argc, argv));
+            }
+            addJob(pid, original_cmd, BACKGROUND);
+            return SMASH_SUCCESS;
+        }
+        return runBuiltin(argc, argv);
+    }
 
-	if(isBuiltin(argv[0])) {
+    const pid_t pid = (pid_t)my_system_call(SYS_FORK);
+    if(pid == -1) {
+        perrorSmash(original_cmd, "fork failed");
+        return SMASH_FAIL;
+    }
 
-		if(isBackground) {
+    if(pid == 0) {
+        setpgid(0, 0);
+        my_system_call(SYS_EXECVP, argv[0], argv);
+        perrorSmash(original_cmd, "execvp failed");
+        exit(EXIT_FAILURE);
+    }
 
-			//background
-			const pid_t pid = (pid_t)my_system_call(SYS_FORK);
-			if(pid == -1) {
-				//fork failed
-				perrorSmash(original_cmd, "fork failed");
-				return SMASH_FAIL;
-			}
-			if(pid == 0) {
+    if(isBackground) {
+        addJob(pid, original_cmd, BACKGROUND);
+        return SMASH_SUCCESS;
+    }
 
-				//child process
-				exit(runBuiltin(argc, argv));
-			}
+    foreground_pid = pid;
+    strncpy(foreground_cmd, original_cmd, CMD_LENGTH_MAX - 1);
+    foreground_cmd[CMD_LENGTH_MAX - 1] = '\0';
 
-			//parent process
-			addJob(pid, original_cmd, BACKGROUND);
-			return SMASH_SUCCESS;
+    int status;
+    if (my_system_call(SYS_WAITPID, pid, &status, WUNTRACED) == -1) {
+        perrorSmash(original_cmd, "waitpid failed");
+        return SMASH_FAIL;
+    }
 
-		}
+    foreground_pid = -1;
+    foreground_cmd[0] = '\0';
 
-		    //foreground
-			return runBuiltin(argc, argv);
+    if(WIFSTOPPED(status)) {
+        addJob(pid, original_cmd, STOPPED);
+        return SMASH_SUCCESS;
+    }
 
-	}
-		//external
-	const pid_t pid = (pid_t)my_system_call(SYS_FORK);
-	    if(pid == -1) {
-		    perrorSmash(original_cmd, "fork failed");
-	    	return SMASH_FAIL;
-	    }
+    if (WIFEXITED(status)) {
+        if (WEXITSTATUS(status) != 0) {
+            return SMASH_FAIL;
+        }
+    }
 
-	if(pid == 0) {
-		//child process
+    return SMASH_SUCCESS;
+}
 
-		setpgid(0,0);
+CommandResult executeCommand(char* cmd_line) {
 
-		my_system_call(SYS_EXECVP, argv[0], argv);
-		perrorSmash(original_cmd, "execvp failed");
-		exit(EXIT_FAILURE);
-	}
+    cleanFinishedJobs();
 
-	//parent process
-	if(isBackground) {
-		addJob(pid, original_cmd, BACKGROUND);
-		return SMASH_SUCCESS;
-	}
+    char cmd_for_alias[CMD_LENGTH_MAX];
+    strncpy(cmd_for_alias, cmd_line, CMD_LENGTH_MAX);
+    cmd_for_alias[CMD_LENGTH_MAX-1] = '\0';
 
-	foreground_pid = pid;
-	strncpy(foreground_cmd, original_cmd, CMD_LENGTH_MAX - 1);
-	foreground_cmd[CMD_LENGTH_MAX - 1] = '\0';
+    char* first_word = strtok(cmd_for_alias, " \t\n");
 
-	int status;
-	if (my_system_call(SYS_WAITPID, pid, &status) == -1) {
-		perrorSmash(original_cmd, "waitpid failed");
-		return SMASH_FAIL;
-	}
-	if(WIFSTOPPED(status)) {
-		foreground_pid = -1;
-		foreground_cmd[0] = '\0';
-		addJob(pid, original_cmd, STOPPED);
-		return SMASH_SUCCESS;
-	}
-	foreground_pid = -1;
-	foreground_cmd[0] = '\0';
-	return SMASH_SUCCESS;
+    if (first_word) {
+        Alias* alias = findAlias(first_word);
+        if (alias) {
+            char* args = cmd_line;
+            while(*args && (*args == ' ' || *args == '\t' || *args == '\n')) args++;
+            args += strlen(first_word);
+
+            char new_cmd[CMD_LENGTH_MAX];
+            sprintf(new_cmd, "%s%s", alias->command, args);
+
+            return executeCommand(new_cmd);
+        }
+    }
+
+    char cmd_copy[CMD_LENGTH_MAX];
+    strncpy(cmd_copy, cmd_line, CMD_LENGTH_MAX);
+    cmd_copy[CMD_LENGTH_MAX-1] = '\0';
+
+    char* left = cmd_copy;
+    char* right;
+    CommandResult res = SMASH_SUCCESS;
+
+    while ((right = strstr(left, "&&")) != NULL) {
+        *right = '\0';
+
+        res = executeSingleCommand(left);
+
+        if (res == SMASH_FAIL) {
+            return SMASH_FAIL;
+        }
+        if (res == SMASH_QUIT) return SMASH_QUIT;
+
+        left = right + 2;
+        while(*left == ' ') left++;
+    }
+
+    return executeSingleCommand(left);
 }

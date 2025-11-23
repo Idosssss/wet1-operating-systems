@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -std=c99 -Wall -Werror -pedantic-errors -pthread -DNDEBUG
 SRCS = $(wildcard *.c)
-OBJS = $(SRCS:.c=.o)
+OBJS = $(SRCS:.c=.o) my_system_call.o
 TARGET = smash
 
 all: $(TARGET)

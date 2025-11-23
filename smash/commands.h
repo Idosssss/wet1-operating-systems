@@ -74,9 +74,22 @@ extern Job* job_list;
 extern pid_t foreground_pid;
 extern char foreground_cmd[CMD_LENGTH_MAX];
 
+
+//ALIAS Type
+typedef struct Alias {
+    char alias[CMD_LENGTH_MAX];
+    char command[CMD_LENGTH_MAX];
+    struct Alias* next;
+} Alias;
+
 /*=============================================================================
 * global functions
 =============================================================================*/
+
+
+
+
+
 ParsingError parseCommandExample(char* line);
 
 CommandResult executeCommand(char* command);
@@ -90,3 +103,4 @@ void removeJobById(int job_id);
 void perrorSmash(const char* command, const char* message);
 
 #endif //COMMANDS_H
+

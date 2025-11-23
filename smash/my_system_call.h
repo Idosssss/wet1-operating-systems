@@ -1,7 +1,7 @@
 #ifndef MY_SYSTEM_CALL_H
 #define MY_SYSTEM_CALL_H
 
-//syscall numbers 
+//syscall numbers
 #define SYS_FORK     1
 #define SYS_EXECVP   2
 #define SYS_WAITPID  3
@@ -23,9 +23,10 @@
  * @param syscall_number The numeric ID representing the system call to execute.
  * @param ... Optional arguments depending on the specific system call type.
  *
- * @return The result of the system call matching the given number from the defined list.  
- *         The output is identical to that of invoking the corresponding system call directly  
+ * @return The result of the system call matching the given number from the defined list.
+ *         The output is identical to that of invoking the corresponding system call directly
  *         (see each call’s behavior in its respective man page).
- */long my_system_call(int syscall_number, ...);
+ */
+long my_system_call(int syscall_number, ...);
 
 #endif

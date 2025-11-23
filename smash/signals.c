@@ -33,7 +33,7 @@ static void sigtstp_handler(int sig) {
 
     if (foreground_pid > 0) {
         if (my_system_call(SYS_KILL, foreground_pid, SIGSTOP) == -1) {
-            perrorSmash("kill", "SIGSTOP failed");
+            perrorSmash("stop", "SIGSTOP failed");
             return;
         }
 
