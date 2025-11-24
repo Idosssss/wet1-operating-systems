@@ -8,6 +8,8 @@
 static void sigint_handler(int sig) {
     (void)sig;
 
+    my_system_call(SYS_SIGNAL, SIGINT, sigint_handler);
+
     printf("smash: caught CTRL+C\n");
 
     if (foreground_pid > 0) {
@@ -22,6 +24,8 @@ static void sigint_handler(int sig) {
 
 static void sigtstp_handler(int sig) {
     (void)sig;
+
+    my_system_call(SYS_SIGNAL, SIGTSTP, sigtstp_handler);
 
     printf("smash: caught CTRL+Z\n");
 
@@ -39,5 +43,3 @@ void setup_signal_handlers(void) {
     my_system_call(SYS_SIGNAL, SIGINT, sigint_handler);
     my_system_call(SYS_SIGNAL, SIGTSTP, sigtstp_handler);
 }
-
-
