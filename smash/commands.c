@@ -451,9 +451,9 @@ CommandResult cmd_quit(int argc, char* argv[]) {
 		sleep(5);
 		if(my_system_call(SYS_WAITPID, job->pid, &status, WNOHANG) == 0) {
 			my_system_call(SYS_KILL, job->pid, SIGKILL);
-			printf("sending SIGKILL... done");
+			printf("sending SIGKILL... done\n");
 		}else {
-			printf("done");
+			printf("done\n");
 		}
 
 		to_free = job;
