@@ -653,7 +653,6 @@ CommandResult runBuiltin(int argc, char* argv[])
 
 	return SMASH_FAIL;
 }
-
 CommandResult executeSingleCommand(char* cmd) {
 
     char original_cmd[CMD_LENGTH_MAX];
@@ -714,8 +713,16 @@ CommandResult executeSingleCommand(char* cmd) {
     foreground_cmd[CMD_LENGTH_MAX - 1] = '\0';
 
     int status;
-    if (my_system_call(SYS_WAITPID, pid, &status, WUNTRACED) == -1) {
+    pid_t wait_result;
+
+    do {
+        wait_result = my_system_call(SYS_WAITPID, pid, &status, WUNTRACED);
+    } while (wait_result == -1 && errno == EINTR);
+
+    if (wait_result == -1) {
         perrorSmash(original_cmd, "waitpid failed");
+        foreground_pid = -1;
+        foreground_cmd[0] = '\0';
         return SMASH_FAIL;
     }
 
@@ -731,6 +738,10 @@ CommandResult executeSingleCommand(char* cmd) {
         if (WEXITSTATUS(status) != 0) {
             return SMASH_FAIL;
         }
+    }
+
+    if (WIFSIGNALED(status)) {
+        return SMASH_FAIL;
     }
 
     return SMASH_SUCCESS;

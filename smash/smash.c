@@ -36,6 +36,11 @@ int main(int argc, char* argv[])
 			continue;
 		}
 
+        char *p = strchr(_line, '\n');
+        if (p) {
+            *p = '\0';
+        }
+
 		if(strcmp(_line, "\n") == 0) {
 			continue;
 		}
