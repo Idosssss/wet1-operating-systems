@@ -579,10 +579,13 @@ void removeAlias(char* name) {
     perrorSmash("unalias", error_msg);
 }
 
-
-
 CommandResult cmd_alias(int argc, char* argv[]) {
     if (argc == 1) {
+        Alias* curr = alias_list;
+        while(curr) {
+            printf("%s='%s'\n", curr->alias, curr->command);
+            curr = curr->next;
+        }
         return SMASH_SUCCESS;
     }
 
@@ -602,10 +605,16 @@ CommandResult cmd_alias(int argc, char* argv[]) {
     char* name = cmd_line;
     char* command = sep + 1;
 
-    if (command[0] == '\'') {
+    if (command[0] == '\'' || command[0] == '\"') {
+        char quote_type = command[0];
         command++;
-        char* end = strrchr(command, '\'');
-        if (end) *end = '\0';
+        char* end = strrchr(command, quote_type);
+        if (end) {
+            *end = '\0';
+        } else {
+            perrorSmash("alias", "invalid alias format");
+            return SMASH_FAIL;
+        }
     }
 
     if (isBuiltin(name)) {
@@ -727,8 +736,8 @@ CommandResult executeSingleCommand(char* cmd) {
     return SMASH_SUCCESS;
 }
 
-CommandResult executeCommand(char* cmd_line) {
 
+CommandResult executeCommand(char* cmd_line) {
     cleanFinishedJobs();
 
     char cmd_for_alias[CMD_LENGTH_MAX];
@@ -746,7 +755,6 @@ CommandResult executeCommand(char* cmd_line) {
 
             char new_cmd[CMD_LENGTH_MAX];
             sprintf(new_cmd, "%s%s", alias->command, args);
-
             return executeCommand(new_cmd);
         }
     }
@@ -756,22 +764,35 @@ CommandResult executeCommand(char* cmd_line) {
     cmd_copy[CMD_LENGTH_MAX-1] = '\0';
 
     char* left = cmd_copy;
-    char* right;
+    char* p = left;
+    bool in_single_quote = false;
+    bool in_double_quote = false;
     CommandResult res = SMASH_SUCCESS;
 
-    while ((right = strstr(left, "&&")) != NULL) {
-        *right = '\0';
-
-        res = executeSingleCommand(left);
-
-        if (res == SMASH_FAIL) {
-            return SMASH_FAIL;
+    while (*p) {
+        if (*p == '\'' && !in_double_quote) {
+            in_single_quote = !in_single_quote;
+        } else if (*p == '\"' && !in_single_quote) {
+            in_double_quote = !in_double_quote;
         }
-        if (res == SMASH_QUIT) return SMASH_QUIT;
 
-        left = right + 2;
-        while(*left == ' ') left++;
+        if (!in_single_quote && !in_double_quote && strncmp(p, "&&", 2) == 0) {
+            *p = '\0';
+
+            res = executeSingleCommand(left);
+
+            if (res == SMASH_FAIL) return SMASH_FAIL;
+            if (res == SMASH_QUIT) return SMASH_QUIT;
+
+            left = p + 2;
+            while(*left == ' ') left++;
+
+            p = left;
+            continue;
+        }
+        p++;
     }
 
     return executeSingleCommand(left);
 }
+
