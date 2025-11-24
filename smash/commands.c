@@ -1,5 +1,6 @@
 //commands.c
 #include "commands.h"
+#include "signal.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -106,7 +107,8 @@ int addJob(pid_t pid, const char* command, JobState state) {
 	Job* newJob = MALLOC_VALIDATED(Job, sizeof(Job));
 	newJob->job_id = nextJobId();
 	newJob->pid = pid;
-	strncpy(newJob->command, command, CMD_LENGTH_MAX);
+	strncpy(newJob->command, command, CMD_LENGTH_MAX - 1);
+	newJob->command[CMD_LENGTH_MAX - 1] = '\0';
 	newJob->start_time = time(NULL);
 	newJob->state = state;
 	newJob->next = NULL;
