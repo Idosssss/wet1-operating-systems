@@ -317,7 +317,7 @@ CommandResult cmd_kill(int argc, char* argv[]) {
 	Job* job = findJobById(jobId);
 	if(job == NULL) {
 		char buffer[CMD_LENGTH_MAX];
-		sprintf(buffer, "job id %s does not exist\n", argv[2]);
+		sprintf(buffer, "job id %s does not exist", argv[2]);
 		perrorSmash("kill", buffer);
 		return SMASH_FAIL;
 	}
