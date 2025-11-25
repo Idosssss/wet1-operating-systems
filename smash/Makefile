@@ -1,16 +1,9 @@
 CC = gcc
-CFLAGS = -std=c99 -Wall -Werror -pedantic-errors -pthread -DNDEBUG
-SRCS = $(wildcard *.c)
-OBJS = $(SRCS:.c=.o) my_system_call.o
+CFLAGS = -std=c99 -g -Wall -Werror -pedantic-errors -DNDEBUG -pthread
 TARGET = smash
 
-all: $(TARGET)
-
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) -o $(TARGET)
-
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
+all:
+	$(CC) $(CFLAGS) *.c my_system_call_c.o -o $(TARGET)
 
 clean:
-	rm -rf $(TARGET) $(OBJS)
+	rm -f $(TARGET) *.o

@@ -33,7 +33,7 @@ int main(int argc, char* argv[])
 		fflush(stdout);
 
 		if(!fgets(_line, CMD_LENGTH_MAX, stdin)) {
-			continue;
+			break;
 		}
 
 		char* p = strchr(_line, '\n');

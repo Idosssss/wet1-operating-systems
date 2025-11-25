@@ -21,7 +21,7 @@ Alias* alias_list = NULL;
 //example function for printing errors from internal commands
 void perrorSmash(const char* cmd, const char* msg)
 {
-	fprintf(stderr, "smash error:%s%s%s\n",
+	fprintf(stderr, "smash error: %s%s%s\n",
 		cmd ? cmd : "",
 		cmd ? ": " : "",
 		msg);
@@ -317,12 +317,12 @@ CommandResult cmd_kill(int argc, char* argv[]) {
 	Job* job = findJobById(jobId);
 	if(job == NULL) {
 		char buffer[CMD_LENGTH_MAX];
-		sprintf(buffer, "job id %s does not exist", argv[2]);
+		sprintf(buffer, "job id %s does not exist\n", argv[2]);
 		perrorSmash("kill", buffer);
 		return SMASH_FAIL;
 	}
 
-	printf("signal %d was sent to pid %d", sigNum, job->pid);
+	printf("signal %d was sent to pid %d\n", sigNum, job->pid);
 	return SMASH_SUCCESS;
 }
 
@@ -448,6 +448,7 @@ CommandResult cmd_quit(int argc, char* argv[]) {
 		printf("[%d] %s - ", job->job_id, job->command);
 		my_system_call(SYS_KILL, job->pid, SIGTERM);
 		printf("sending SIGTERM... ");
+		fflush(stdout);
 		sleep(5);
 		if(my_system_call(SYS_WAITPID, job->pid, &status, WNOHANG) == 0) {
 			my_system_call(SYS_KILL, job->pid, SIGKILL);
@@ -459,6 +460,14 @@ CommandResult cmd_quit(int argc, char* argv[]) {
 		to_free = job;
 		job = job->next;
 		free(to_free);
+	}
+
+	Alias* curr = alias_list;
+	Alias* alias_to_free = NULL;
+	while(curr != NULL) {
+		alias_to_free = curr;
+		curr = curr->next;
+		free(alias_to_free);
 	}
 
 	return SMASH_QUIT;
